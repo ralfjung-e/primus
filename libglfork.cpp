@@ -528,6 +528,16 @@ static GLXPbuffer create_pbuffer(DrawableInfo &di)
   return primus.afns.glXCreatePbuffer(primus.adpy, di.fbconfig, pbattrs);
 }
 
+// return the parent of the given X window
+static Window get_parent(Display *dpy, Window w)
+{
+  Window root, parent, *children;
+  unsigned int nchildren;
+  XQueryTree(dpy, w, &root, &parent, &children, &nchildren);
+  XFree(children);
+  return parent;
+}
+
 // Create or recall backing Pbuffer for the drawable
 static GLXPbuffer lookup_pbuffer(Display *dpy, GLXDrawable draw, GLXContext ctx)
 {
@@ -543,6 +553,16 @@ static GLXPbuffer lookup_pbuffer(Display *dpy, GLXDrawable draw, GLXContext ctx)
     di.fbconfig = primus.contexts[ctx].fbconfig;
     di.window = draw;
     note_geometry(dpy, draw, &di.width, &di.height);
+
+    // Disable compositing as long as the window containing this drawable is open: Set the property on all window up to, but excluding, the root
+    Window cur = draw;
+    while (Window parent = get_parent(dpy, cur)) {
+      // set the property on it
+      XChangeProperty(dpy, cur, XInternAtom(dpy, "_KDE_NET_WM_BLOCK_COMPOSITING", False),
+	  XA_ATOM, 32, PropModeReplace, NULL, 0);
+      // go up the tree
+      cur = parent;
+    }
   }
   else if (ctx && di.fbconfig != primus.contexts[ctx].fbconfig)
   {
