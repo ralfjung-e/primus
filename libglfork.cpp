@@ -313,6 +313,15 @@ public:
   }
 };
 
+// Find out the dimensions of the window
+static void note_geometry(Display *dpy, Drawable draw, int *width, int *height)
+{
+  Window root;
+  int x, y;
+  unsigned bw, d;
+  XGetGeometry(dpy, draw, &root, &x, &y, (unsigned *)width, (unsigned *)height, &bw, &d);
+}
+
 static void* display_work(void *vd)
 {
   GLXDrawable drawable = (GLXDrawable)vd;
@@ -327,6 +336,10 @@ static void* display_work(void *vd)
   Display *ddpy = XOpenDisplay(NULL);
   assert(di.kind == di.XWindow || di.kind == di.Window);
   XSelectInput(ddpy, di.window, StructureNotifyMask);
+  note_geometry(ddpy, di.window, &width, &height);
+  if (di.width != width || di.height != height) {
+    di.reinit = di.RESIZE; di.width = width; di.height = height;
+  }
   GLXContext context = primus.dfns.glXCreateNewContext(ddpy, primus.dconfigs[0], GLX_RGBA_TYPE, NULL, True);
   die_if(!primus.dfns.glXIsDirect(ddpy, context),
 	 "failed to acquire direct rendering context for display thread\n");
@@ -511,15 +524,6 @@ void glXDestroyContext(Display *dpy, GLXContext ctx)
     for (DrawablesInfo::iterator i = primus.drawables.begin(); i != primus.drawables.end(); i++)
       i->second.reap_workers();
   primus.afns.glXDestroyContext(primus.adpy, ctx);
-}
-
-// Find out the dimensions of the window
-static void note_geometry(Display *dpy, Drawable draw, int *width, int *height)
-{
-  Window root;
-  int x, y;
-  unsigned bw, d;
-  XGetGeometry(dpy, draw, &root, &x, &y, (unsigned *)width, (unsigned *)height, &bw, &d);
 }
 
 static GLXPbuffer create_pbuffer(DrawableInfo &di)
